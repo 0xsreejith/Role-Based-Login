@@ -4,6 +4,7 @@ import 'package:rolebased_login/service/auth/login_or_signup.dart';
 import 'package:rolebased_login/views/home_page.dart';
 
 class AuthGate extends StatelessWidget {
+  
   const AuthGate({super.key});
 
   @override

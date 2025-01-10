@@ -1,84 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:rolebased_login/service/auth/auth_service.dart';
-import 'package:rolebased_login/views/admin_home_page.dart';
+import 'package:get/get.dart';
+import 'package:rolebased_login/controller/auth_controller.dart';
 import 'package:rolebased_login/views/componets/my_button.dart';
 import 'package:rolebased_login/views/home_page.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends StatelessWidget {
   final void Function()? onTap; // Function for navigating to the signup screen
+  final AuthController authController = Get.put(AuthController());
 
-  const LoginScreen({super.key, required this.onTap});
-
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final AuthService _authService = AuthService();
-
-  String? errorMessage;
-  bool isLoading = false;
-  bool isPasswordHidden = true;
-
-  /// Login logic
-Future<void> _handleLogin() async {
-  final email = emailController.text.trim();
-  final password = passwordController.text.trim();
-
-  if (email.isEmpty || password.isEmpty) {
-    setState(() {
-      errorMessage = "Please enter both email and password.";
-    });
-    return;
-  }
-
-  setState(() {
-    errorMessage = null;
-    isLoading = true;
-  });
-
-  try {
-    final result = await _authService.loginWithEmailPassword(email, password);
-
-    // Extract role from the result
-    final role = result['role'];
-
-    // Check role and navigate accordingly
-    if (role == 'admin') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => AdminHomePage()), // Replace with admin page
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => HomePage()),
-      );
-    }
-  } catch (e) {
-    setState(() {
-      errorMessage = "Login failed: ${e.toString()}";
-    });
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
-  }
-}
-
-
-  @override
-  void dispose() {
-    emailController.dispose();
-    passwordController.dispose();
-    super.dispose();
-  }
+  LoginScreen({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final TextEditingController emailController = TextEditingController();
+    final TextEditingController passwordController = TextEditingController();
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -110,42 +46,74 @@ Future<void> _handleLogin() async {
                 const SizedBox(height: 15),
 
                 // Password input field
-                TextField(
-                  controller: passwordController,
-                  obscureText: isPasswordHidden,
-                  decoration: InputDecoration(
-                    labelText: "Password",
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        isPasswordHidden ? Icons.visibility : Icons.visibility_off,
+                Obx(() {
+                  return TextField(
+                    controller: passwordController,
+                    obscureText: authController.showPassword.value,
+                    decoration: InputDecoration(
+                      labelText: "Password",
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          authController.showPassword.value
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          authController.isLoading.value =
+                              !authController.isLoading.value;
+                        },
                       ),
-                      onPressed: () {
-                        setState(() {
-                          isPasswordHidden = !isPasswordHidden;
-                        });
-                      },
                     ),
-                  ),
-                ),
+                  );
+                }),
                 const SizedBox(height: 10),
 
                 // Error message
-                if (errorMessage != null)
-                  Text(
-                    errorMessage!,
-                    style: const TextStyle(color: Colors.red),
-                  ),
+                Obx(() {
+                  return authController.errorMessage.value.isNotEmpty
+                      ? Text(
+                          authController.errorMessage.value,
+                          style: const TextStyle(color: Colors.red),
+                        )
+                      : const SizedBox.shrink();
+                }),
                 const SizedBox(height: 15),
 
                 // Login button with loading indicator
-                isLoading
-                    ? const CircularProgressIndicator()
-                    : MyButton(
-                        buttonName: "Login",
-                        onTap: _handleLogin,
-                      ),
+                Obx(() {
+                  return authController.isLoading.value
+                      ? const CircularProgressIndicator()
+                      : MyButton(
+                          buttonName: "Login",
+                          onTap: () async {
+                            await authController.login(
+                              emailController.text.trim(),
+                              passwordController.text.trim(),
+                            );
+
+                            // Navigate based on role
+                            if (authController.currentUser.value != null) {
+                              if (authController.getRole() == 'admin') {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => HomePage(),
+                                  ),
+                                );
+                              } else {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => HomePage(),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        );
+                }),
                 const SizedBox(height: 20),
 
                 // Signup prompt
@@ -157,7 +125,7 @@ Future<void> _handleLogin() async {
                       style: TextStyle(fontSize: 16),
                     ),
                     GestureDetector(
-                      onTap: widget.onTap,
+                      onTap: onTap,
                       child: const Text(
                         "Signup here",
                         style: TextStyle(
